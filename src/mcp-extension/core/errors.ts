@@ -7,23 +7,23 @@ export enum MCPErrorType {
   PolicyBlocked = 'PolicyBlocked',
 }
 
-export interface MCPError {
-  type: MCPErrorType;
-  message: string;
+export class MCPError extends Error {
+  readonly type: MCPErrorType;
   code?: number;
   serverId?: string;
-  details?: any;
+  details?: unknown;
+
+  constructor(type: MCPErrorType, message: string) {
+    super(message);
+    this.name = 'MCPError';
+    this.type = type;
+  }
 }
 
-/**
- * Helper to notify the user via ctx.ui.notify when an error occurs.
- * This follows the requirement: "Connection failures or initialization errors 
- * SHALL be surfaced via ctx.ui.notify".
- */
 export function notifyMCPError(ctx: any, error: MCPError) {
   if (ctx && ctx.ui && typeof ctx.ui.notify === 'function') {
-    ctx.ui.notify(`MCP Error [${error.type}] on ${error.serverId || 'unknown'}: ${error.message}`);
+    ctx.ui.notify(`MCP Error [${error.type}] on ${error.serverId ?? 'unknown'}: ${error.message}`);
   } else {
-    console.error(`MCP Error [${error.type}] on ${error.serverId || 'unknown'}: ${error.message}`, error.details);
+    console.error(`MCP Error [${error.type}] on ${error.serverId ?? 'unknown'}: ${error.message}`, error.details);
   }
 }
