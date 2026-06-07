@@ -1,0 +1,25 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+context: |
+  - Tech stack: TypeScript
+  - Domain: pi extensions (extensions that add capabilities to the 'pi' agent)
+  - Methodology: Specification-Driven Development (SDD) combined with Behavior-Driven Development (BDD).
+  - Goal: Provide a standardized way to build, manage, and deploy new 'pi' extension modules.
+  - Current focus: MCP (Model Context Protocol) server integration.
+
+# Per-artifact rules (optional)
+rules:
+  proposal:
+    - Must clearly state the problem being solved.
+    - Must include "Success Criteria" using BDD style (Given/When/Then scenarios).
+    - Must define technical limitations or out-of-scope items ("Non-goals").
+  design:
+    - Must describe the architecture, including data flow and state management.
+    - Must map to specific requirements in the specification.
+    - Must include testable behavior descriptions corresponding to the BDD scenarios defined in the proposal.
+  tasks:
+    - Use atomic, actionable steps.
+    - Each task should ideally be small enough to be completed in one session.
+    - Include "Definition of Done" for each major milestone, referencing the corresponding BDD scenario(s).
