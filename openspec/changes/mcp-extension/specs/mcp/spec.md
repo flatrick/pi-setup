@@ -15,6 +15,9 @@ The MCP (Model Context Protocol) extension allows `pi` to connect to external to
     - `command` & `args`: (for `stdio`)
     - `url` & `headers`: (for `http`)
     - `env`: (optional dictionary of environment variables)
+    - `policy`: (optional object for security control)
+        - `global_validator`: (path to a script for every call to this server)
+        - `tool_validators`: (map of tool names to specific script paths)
 
 #### Scenario: Loading configuration from workspace local file
 Given a `.mcp.json` file exists in the current workspace directory
@@ -24,7 +27,7 @@ Then it should load the `mcpServers` defined in that `.mcp.json` file.
 #### Scenario: Loading configuration from global config file
 Given no `.mcp.json` file exists in the workspace but a `~/.pi/agent/.mcp.json` file exists
 When `pi` starts up
-Then it should load the `mcpServers` defined in `~/.pi/agent/.mcp.json`.
+Then it should load the `mcpServers` defined in that `~/.pi/agent/.mcp.json`.
 
 #### Scenario: Validating configuration format
 Given a `.mcp.json` file with an invalid server entry (e.g., missing `type`)
@@ -70,6 +73,15 @@ Given an MCP server that takes longer than 10 seconds to initialize
 When `pi` starts up
 Then it should mark the server as "Error" (or similar) after the timeout and continue starting other servers.
 
+### Requirement: Security Policy Engine (Stub)
+- The system SHALL provide a hook for a security policy engine. For the current iteration, this engine SHALL act as a pass-through stub, allowing all tool calls without validation.
+- Full implementation including multi-layered evaluation and validator scripts is deferred to `mcp-extension-policy-engine`.
+
+#### Scenario: Stub policy engine allows all tool calls
+Given the policy engine stub is in place and no policy configuration is defined
+When `pi` executes any tool call on a connected MCP server
+Then the call proceeds to the transport without being evaluated or blocked.
+
 ### Requirement: Tool Integration & Collision Prevention
 - All discovered tools from all active servers SHALL be registered into the `pi` tool registry.
 - Tools SHALL be prefixed with their server name to prevent name collisions (e.g., `github:create_issue`, `sqlite:query`).
@@ -83,6 +95,15 @@ Then the tool should be available in `pi` as `github:create_issue`.
 Given two different servers (e.g., `github` and `gitlab`) both provide a tool named `create_issue`
 When both are connected
 Then they should be registered as `github:create_issue` and `gitlab:create_issue` respectively.
+
+### Requirement: Context Window Protection (Stub)
+- The system SHALL provide a hook for an overflow manager. For the current iteration, this manager SHALL act as a pass-through stub, forwarding all tool results to the agent without size checking or offloading.
+- Full implementation including result offloading and reference messaging is deferred to `mcp-extension-overflow-management`.
+
+#### Scenario: Stub overflow manager passes all results through unchanged
+Given the overflow manager stub is in place
+When `pi` receives any tool result from a connected MCP server
+Then the full result is forwarded to the agent without size checking, modification, or offloading.
 
 ### Requirement: Observability & UI
 - A `/mcp` command SHALL exist to:
