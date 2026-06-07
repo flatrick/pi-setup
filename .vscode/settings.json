@@ -1,0 +1,13 @@
+{
+    "workbench.colorCustomizations": {},
+    "git.autofetch": "all",
+    "git.detectWorktrees": true,
+    "git.enableCommitSigning": true,
+    "git.enableSmartCommit": true,
+    "git.fetchOnPull": true,
+    "git.mergeEditor": true,
+    "git.pruneOnFetch": true,
+    "git.pullBeforeCheckout": true,
+    "git.replaceTagsWhenPull": true,
+    "git.timeline.showUncommitted": true
+}
