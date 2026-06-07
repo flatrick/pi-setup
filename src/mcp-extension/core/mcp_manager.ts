@@ -62,8 +62,8 @@ export class MCPManager {
   /**
    * Gets server configuration including resolved environment variables and their sources.
    */
-  getServerConfigs() {
-    const { config, resolvedEnvVars } = this.configResolver.resolveConfig(process.cwd());
+  async getServerConfigs() {
+    const { config, resolvedEnvVars } = await this.configResolver.resolveConfig(process.cwd());
     const results: Record<string, any> = {};
     for (const [serverId, serverConfig] of Object.entries(config.mcpServers)) {
       results[serverId] = {

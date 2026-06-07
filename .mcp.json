@@ -1,0 +1,22 @@
+  {
+     "mcpServers": {
+       "test-stdio": {
+         "type": "stdio",
+         "command": "echo",
+         "args": ["Hello from stdio"],
+         "env": {
+           "TEST_KEY": "config_value"
+         }
+       },
+       "mock-http": {
+         "type": "http",
+         "url": "http://localhost:8080",
+         "headers": {
+           "Authorization": "Bearer mock_token"
+         },
+         "env": {
+           "HTTP_PROXY": "none"
+         }
+       }
+     }
+   }
