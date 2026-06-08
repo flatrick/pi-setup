@@ -75,9 +75,7 @@ export class ConfigResolver {
             const [key, ...valParts] = line.split('=');
             const val = valParts.join('=').trim();
             const cleanKey = key.trim();
-            if (!resolvedEnv[cleanKey]) {
-              resolvedEnv[cleanKey] = { value: val, source: '.env' };
-            }
+            resolvedEnv[cleanKey] = { value: val, source: '.env' };
           }
         });
       }
