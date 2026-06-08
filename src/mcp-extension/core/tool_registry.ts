@@ -32,7 +32,7 @@ export class ToolRegistry {
    * Retrieves all registered tools.
    */
   getAllTools(): Record<string, any> {
-    return this.tools;
+    return { ...this.tools };
   }
 
   /**

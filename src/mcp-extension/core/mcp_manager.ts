@@ -25,7 +25,6 @@ export class MCPManager {
     const initializations = Array.from(Object.entries(config.mcpServers)).map(
       async ([serverId, serverConfig]) => {
         const client = new ServerClient(serverId, serverConfig);
-        this.clients.set(serverId, client);
 
         await Promise.race([
           client.connect(),
@@ -34,6 +33,8 @@ export class MCPManager {
           ),
         ]);
 
+        // Only register after successful connect
+        this.clients.set(serverId, client);
         this.toolRegistry.register(serverId, Object.values(client.getTools()));
       }
     );
@@ -58,8 +59,11 @@ export class MCPManager {
    */
   async getServerConfigs() {
     const results: Record<string, any> = {};
+    const allTools = this.toolRegistry.getAllTools();
     for (const [serverId] of this.clients) {
-      results[serverId] = this.toolRegistry.getAllTools();
+      results[serverId] = Object.fromEntries(
+        Object.entries(allTools).filter(([k]) => k.startsWith(`${serverId}:`))
+      );
     }
     return results;
   }

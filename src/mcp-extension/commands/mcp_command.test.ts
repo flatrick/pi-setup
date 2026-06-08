@@ -33,9 +33,13 @@ describe('handleMcpCommand', () => {
     expect(output).toContain('github:create_issue');
   });
 
-  it('awaits getServerConfigs (does not treat Promise as configs)', async () => {
-    const manager = makeMockManager();
+  it('displays server names from getServerConfigs result', async () => {
+    const manager = {
+      getTools: vi.fn().mockReturnValue({}),
+      getServerConfigs: vi.fn().mockResolvedValue({ 'my-server': {} }),
+    } as unknown as MCPManager;
     await handleMcpCommand(manager);
-    expect(manager.getServerConfigs).toHaveBeenCalled();
+    const output = consoleLog.mock.calls.flat().join('\n');
+    expect(output).toContain('my-server');
   });
 });
