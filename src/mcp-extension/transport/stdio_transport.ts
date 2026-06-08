@@ -1,26 +1,38 @@
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { MCPError, MCPErrorType } from '../core/errors.js';
-import { notifyMCPError } from '../core/errors.js';
+import { MCPError, MCPErrorType, notifyMCPError } from '../core/errors.js';
 
-/**
- * Manages a child process for an MCP server using the stdio transport.
- * Handles communication via stdin and stdout streams.
- */
+export function parseMessages(buffer: string, chunk: string): { messages: unknown[]; remainder: string } {
+  const messages: unknown[] = [];
+  let remainder = buffer + chunk;
+  let boundary = remainder.indexOf('\n');
+
+  while (boundary !== -1) {
+    const line = remainder.slice(0, boundary).trim();
+    if (line) {
+      try {
+        messages.push(JSON.parse(line));
+      } catch {
+        console.error(`Failed to parse MCP message: ${line}`);
+      }
+    }
+    remainder = remainder.slice(boundary + 1);
+    boundary = remainder.indexOf('\n');
+  }
+
+  return { messages, remainder };
+}
+
+type ChildProcess = import('node:child_process').ChildProcess;
+
 export class StdioTransport extends EventEmitter {
   private childProcess: ChildProcess | null = null;
-  private inputStream?: BufferWriteStream;
-  private outputStream!: BufferReadStream;
-  private inputBuffer: string = '';
-  private outputBuffer: string = '';
+  private receiveBuffer = '';
 
   constructor(private serverConfig: any) {
     super();
   }
 
-  /**
-   * Starts the MCP server process.
-   */
   async connect(): Promise<void> {
     const { command, args } = this.serverConfig;
     if (!command) {
@@ -28,93 +40,43 @@ export class StdioTransport extends EventEmitter {
     }
 
     try {
-      this.childProcess = spawn(command, args || [], {
+      this.childProcess = spawn(command, args ?? [], {
         stdio: ['pipe', 'pipe', 'inherit'],
-        env: this.serverConfig.env, // Resolved env vars
+        env: { ...process.env, ...this.serverConfig.env },
       });
 
-      if (!this.childProcess) {
-        throw new Error("Failed to spawn child process.");
-      }
-
-      this.outputStream = this.childProcess.stdout;
-      this.inputStream = this.childProcess.stdin;
-
-      // Handle stdout messages
-      this.outputStream.on('data', (data: Buffer) => {
-        const chunk = data.toString();
-        this._processBuffer(this.outputBuffer, chunk, 'message');
+      this.childProcess.stdout!.on('data', (data: Buffer) => {
+        const { messages, remainder } = parseMessages(this.receiveBuffer, data.toString());
+        this.receiveBuffer = remainder;
+        for (const msg of messages) {
+          this.emit('message', msg);
+        }
       });
 
-      // Handle stdin messages (if any are sent back from the server for some reason)
-      this.inputStream?.on('data', (data: Buffer) => {
-        const chunk = data.toString();
-        this._processBuffer(this.inputBuffer, chunk, 'input');
-      });
-
-      this.childProcess.on('error', (err) => {
-        console.error(`StdioTransport Error: ${err.message}`);
+      this.childProcess.on('error', (err: Error) => {
+        notifyMCPError({}, new MCPError(MCPErrorType.TransportError, err.message));
         this.emit('error', err);
       });
 
-      this.childProcess.on('close', (code) => {
+      this.childProcess.on('close', (code: number | null) => {
         this.emit('close', code);
       });
-
-    } catch (err) {
-      notifyMCPError({}, new MCPError(MCPErrorType.InitializationError, `Failed to connect to ${this.serverConfig.type}: ${err.message}`));
+    } catch (err: any) {
+      throw new MCPError(MCPErrorType.InitializationError, `Failed to spawn process: ${err.message}`);
     }
   }
 
-  /**
-   * Internal method to handle buffering and framing of JSON messages.
-   */
-  private _processBuffer(buffer: string, chunk: string, type: 'message' | 'input') {
-    const newBuffer = buffer + chunk;
-    let boundary = newBuffer.indexOf('\n');
-    
-    while (boundary !== -1) {
-      const message = newBuffer.slice(0, boundary).trim();
-      if (message) {
-        try {
-          const parsed = JSON.parse(message);
-          this.emit(type, parsed);
-        } catch (e) {
-          console.error(`Failed to parse MCP ${type} message: ${message}`);
-        }
-      }
-      newBuffer = newBuffer.slice(boundary + 1);
-      boundary = newBuffer.indexOf('\n');
+  async send(message: unknown): Promise<void> {
+    if (!this.childProcess?.stdin) {
+      throw new MCPError(MCPErrorType.TransportError, "Transport is not connected.");
     }
-
-    if (type === 'message') {
-      this.outputBuffer = newBuffer;
-    } else {
-      this.inputBuffer = newBuffer;
-    }
+    this.childProcess.stdin.write(JSON.stringify(message) + '\n');
   }
 
-  /**
-   * Sends a message to the MCP server via stdin.
-   */
-  async send(message: any): Promise<void> {
-    if (!this.inputStream) {
-      throw new Error("Transport is not connected.");
-    }
-    this.inputStream.write(JSON.stringify(message) + '\n');
-  }
-
-  /**
-   * Gracefully shuts down the child process.
-   */
   async disconnect(): Promise<void> {
     if (this.childProcess) {
       this.childProcess.kill('SIGTERM');
+      this.childProcess = null;
     }
   }
 }
-
-// Helper types for missing Node.js definitions in some environments
-type ChildProcess = import('node:child_process').ChildProcess;
-type BufferWriteStream = import('node:stream').Writable;
-type BufferReadStream = import('node:stream').Readable;
