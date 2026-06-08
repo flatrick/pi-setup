@@ -39,11 +39,16 @@ export class StdioTransport extends EventEmitter {
       throw new MCPError(MCPErrorType.ConfigurationError, "No command specified for stdio transport.");
     }
 
-    try {
-      this.childProcess = spawn(command, args ?? [], {
-        stdio: ['pipe', 'pipe', 'inherit'],
-        env: { ...process.env, ...this.serverConfig.env },
-      });
+    await new Promise<void>((resolve, reject) => {
+      try {
+        this.childProcess = spawn(command, args ?? [], {
+          stdio: ['pipe', 'pipe', 'inherit'],
+          env: { ...process.env, ...this.serverConfig.env },
+        });
+      } catch (err: any) {
+        reject(new MCPError(MCPErrorType.InitializationError, `Failed to spawn process: ${err.message}`));
+        return;
+      }
 
       this.childProcess.stdout!.on('data', (data: Buffer) => {
         const { messages, remainder } = parseMessages(this.receiveBuffer, data.toString());
@@ -53,17 +58,28 @@ export class StdioTransport extends EventEmitter {
         }
       });
 
-      this.childProcess.on('error', (err: Error) => {
+      const onSpawnError = (err: Error) => {
         notifyMCPError({}, new MCPError(MCPErrorType.TransportError, err.message));
-        this.emit('error', err);
+        reject(new MCPError(MCPErrorType.InitializationError, `Failed to spawn process: ${err.message}`));
+      };
+
+      this.childProcess.once('error', onSpawnError);
+
+      // Use 'spawn' event (Node ≥ 15) to confirm successful spawn, then
+      // re-attach a non-rejecting error handler for post-spawn errors.
+      this.childProcess.once('spawn', () => {
+        this.childProcess!.removeListener('error', onSpawnError);
+        this.childProcess!.on('error', (err: Error) => {
+          notifyMCPError({}, new MCPError(MCPErrorType.TransportError, err.message));
+          this.emit('error', err);
+        });
+        resolve();
       });
 
       this.childProcess.on('close', (code: number | null) => {
         this.emit('close', code);
       });
-    } catch (err: any) {
-      throw new MCPError(MCPErrorType.InitializationError, `Failed to spawn process: ${err.message}`);
-    }
+    });
   }
 
   async send(message: unknown): Promise<void> {
