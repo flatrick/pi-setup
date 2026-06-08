@@ -8,6 +8,7 @@ export class ServerClient {
   private isInitialized = false;
   private pendingRequests: Map<number, (response: any) => void> = new Map();
   private requestIdCounter = 0;
+  private messageListenerRegistered = false;
 
   constructor(serverId: string, serverConfig: any) {
     this.serverId = serverId;
@@ -31,7 +32,11 @@ export class ServerClient {
         }
       });
 
-      this.transport.send({ jsonrpc: "2.0", id, method, params });
+      this.transport.send({ jsonrpc: "2.0", id, method, params }).catch((err) => {
+        clearTimeout(timeout);
+        this.pendingRequests.delete(id);
+        reject(err);
+      });
     });
   }
 
@@ -39,13 +44,16 @@ export class ServerClient {
     try {
       await this.transport.connect();
 
-      this.transport.on('message', (msg: any) => {
-        if (msg.id !== undefined && this.pendingRequests.has(msg.id)) {
-          const handler = this.pendingRequests.get(msg.id)!;
-          this.pendingRequests.delete(msg.id);
-          handler(msg);
-        }
-      });
+      if (!this.messageListenerRegistered) {
+        this.transport.on('message', (msg: any) => {
+          if (msg.id !== undefined && this.pendingRequests.has(msg.id)) {
+            const handler = this.pendingRequests.get(msg.id)!;
+            this.pendingRequests.delete(msg.id);
+            handler(msg);
+          }
+        });
+        this.messageListenerRegistered = true;
+      }
 
       await this.sendRequest("initialize", {
         protocolVersion: "2024-11-05",
@@ -62,7 +70,9 @@ export class ServerClient {
       await this.discoverTools();
       this.isInitialized = true;
     } catch (err: any) {
-      notifyMCPError({}, new MCPError(MCPErrorType.InitializationError, `Failed to initialize server ${this.serverId}: ${err.message}`));
+      const mcpErr = new MCPError(MCPErrorType.InitializationError, `Failed to initialize server ${this.serverId}: ${err.message}`);
+      notifyMCPError({}, mcpErr);
+      throw mcpErr;
     }
   }
 
@@ -91,6 +101,10 @@ export class ServerClient {
   }
 
   async disconnect(): Promise<void> {
+    for (const handler of this.pendingRequests.values()) {
+      handler({ error: { message: 'Transport disconnected' } });
+    }
+    this.pendingRequests.clear();
     await this.transport.disconnect();
   }
 }
