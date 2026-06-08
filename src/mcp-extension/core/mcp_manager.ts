@@ -38,7 +38,12 @@ export class MCPManager {
       }
     );
 
-    await Promise.allSettled(initializations);
+    const results = await Promise.allSettled(initializations);
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        console.error('MCP server initialization failed:', result.reason);
+      }
+    }
   }
 
   /**
